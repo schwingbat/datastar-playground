@@ -16,14 +16,14 @@ serve({
   routes: {
     "/counter": counter,
 
-    "/counter/subscribe": (req) => {
+    "/counter/subscribe": () => {
       return eventStream(async function* () {
         // Render current count
         yield patchElements(`<p id="count">${currentCount}</p>`);
 
         // Subscribe to further updates
-        for await (const _event of on(emitter, "update")) {
-          yield patchElements(`<p id="count">${currentCount}</p>`);
+        for await (const [count] of on(emitter, "update")) {
+          yield patchElements(`<p id="count">${count}</p>`);
         }
       });
     },
@@ -33,7 +33,7 @@ serve({
       return new Response("OK");
     },
 
-    "/counter/decrement": (req) => {
+    "/counter/decrement": () => {
       emitter.emit("update", currentCount - 1);
       return new Response("OK");
     },
