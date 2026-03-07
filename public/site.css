@@ -1,0 +1,8 @@
+@view-transition {
+  navigation: auto;
+}
+
+body {
+  background-color: black;
+  color: white;
+}

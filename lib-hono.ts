@@ -11,7 +11,7 @@ export async function eventStream(
   return streamSSE(c, async (stream) => {
     for await (const message of fn(c.req.raw.signal)) {
       if (stream.aborted) return;
-      stream.write(encoder.encode(message));
+      await stream.write(encoder.encode(message));
     }
   });
 }
@@ -24,14 +24,15 @@ export async function eventStream(
  * Formats a name and data object as an event stream message.
  */
 function _formatEvent(name: string, data: Record<string, any>): string {
-  return [
-    `event: ${name}\n`,
-    Object.entries(data).map(
-      ([key, value]) =>
-        `data: ${key} ${key === "elements" ? value : JSON.stringify(value)}\n`,
-    ),
-    "\n",
-  ].join("");
+  const lines = [`event: ${name}\n`];
+  for (const [key, value] of Object.entries(data)) {
+    const itemLines = String(value).split("\n");
+    for (const line of itemLines) {
+      lines.push(`data: ${key} ${line}\n`);
+    }
+  }
+  lines.push("\n");
+  return lines.join("");
 }
 
 export async function readSignals<T = Record<string, any>>(
@@ -55,6 +56,20 @@ export async function readSignals<T = Record<string, any>>(
   return signals;
 }
 
+export interface PatchSignalsOptions {
+  /**
+   * Only update each signal if a signal with that name doesn't already exist.
+   */
+  onlyIfMissing?: boolean;
+}
+
+export function patchSignals(
+  signals: Record<string, any>,
+  options?: PatchSignalsOptions,
+): string {
+  return _formatEvent("datastar-patch-signals", { signals, ...options });
+}
+
 export interface PatchElementsOptions {
   mode?:
     | "outer"
@@ -64,6 +79,7 @@ export interface PatchElementsOptions {
     | "append"
     | "before"
     | "after";
+  selector?: string;
   namespace?: "svg" | "mathml";
   useViewTransition?: boolean;
 }
@@ -93,16 +109,15 @@ export async function removeElements(
   });
 }
 
-export interface PatchSignalsOptions {
-  /**
-   * Only update each signal if a signal with that name doesn't already exist.
-   */
-  onlyIfMissing?: boolean;
-}
+export interface ExecuteScriptOptions {}
 
-export function patchSignals(
-  signals: Record<string, any>,
-  options?: PatchSignalsOptions,
+export function executeScript(
+  script: string,
+  options?: ExecuteScriptOptions,
 ): string {
-  return _formatEvent("datastar-patch-signals", { signals, ...options });
+  return _formatEvent("datastar-patch-elements", {
+    elements: `<script data-effect="el.remove()">${script}</script>`,
+    selector: "body",
+    mode: "append",
+  });
 }

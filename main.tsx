@@ -1,7 +1,9 @@
 import { Hono } from "hono";
 import { html } from "hono/html";
+import { serveStatic } from "hono/bun";
 import { EventEmitter, on } from "node:events";
-import { eventStream, patchElements } from "./lib-hono.js";
+import { eventStream, executeScript, patchElements } from "./lib-hono.js";
+import { Layout } from "./components/layout.js";
 
 const emitter = new EventEmitter();
 let currentCount = 0;
@@ -12,29 +14,7 @@ emitter.on("update", (value) => {
 
 const app = new Hono();
 
-interface LayoutProps {
-  title: string;
-  children?: any;
-}
-
-function Layout(props: LayoutProps) {
-  return html`
-    <!doctype html>
-    <html>
-      <head>
-        <title>${props.title}</title>
-      </head>
-      <body>
-        ${props.children}
-      </body>
-
-      <script
-        type="module"
-        src="https://cdn.jsdelivr.net/gh/starfederation/datastar@1.0.0-RC.8/bundles/datastar.js"
-      ></script>
-    </html>
-  `;
-}
+app.use("/*", serveStatic({ root: "./public" }));
 
 // Render page on load with the latest currentCount.
 app.get("/counter", (c) => {
@@ -45,6 +25,8 @@ app.get("/counter", (c) => {
 
         <button data-on:click="@put('/counter/increment')">Increment</button>
         <button data-on:click="@put('/counter/decrement')">Decrement</button>
+
+        <button data-on:click="@put('/counter/test')">Send Script</button>
       </div>
     </Layout>,
   );
@@ -62,11 +44,20 @@ app.get("/counter/subscribe", (c) => {
       }
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") {
-        console.log("Connection closed. Listener removed.");
+        // Connection closed. Listener removed.
       } else {
         throw error;
       }
     }
+  });
+});
+
+app.put("/counter/test", (c) => {
+  return eventStream(c, async function* () {
+    // Run arbitrary JS on the client
+    yield executeScript(`
+      console.log("HELLO FROM THE SERVER");
+    `);
   });
 });
 
